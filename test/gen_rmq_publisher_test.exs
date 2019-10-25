@@ -119,6 +119,33 @@ defmodule GenRMQ.PublisherTest do
       assert meta[:priority] == 100
     end
 
+    test "should publish with all metadata attributes", %{publisher: publisher_pid} = context do
+      message = %{"msg" => "with all metadata"}
+
+      sent_metadata = [
+        content_type: "application/json",
+        content_encoding: "gzip",
+        persistent: true,
+        priority: 100,
+        correlation_id: "10",
+        reply_to: "response_to",
+        expiration: "60000",
+        message_id: "message_id",
+        type: "message_type",
+        user_id: "guest",
+        cluster_id: "cluster_id"
+      ]
+
+      :ok = GenRMQ.Publisher.publish(publisher_pid, Jason.encode!(message), "some.routing.key", sent_metadata)
+
+      Assert.repeatedly(fn -> assert out_queue_count(context) >= 1 end)
+      {:ok, received_message, received_meta} = get_message_from_queue(context)
+
+      # Verify we get back all metadata attributes we have sent
+      assert Enum.all?(sent_metadata, fn {k, v} -> Map.get(received_meta, k) == v end)
+      assert message == received_message
+    end
+
     test "should reconnect after connection failure", %{publisher: publisher_pid, state: state} = context do
       message = %{"msg" => "pub_disc"}
 
