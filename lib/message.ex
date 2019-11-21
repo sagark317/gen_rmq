@@ -6,17 +6,19 @@ defmodule GenRMQ.Message do
   * `:attributes` - message attributes
   * `:payload` - message raw payload
   * `:state` - consumer state
+  * `:config` - config
   """
 
-  @enforce_keys [:attributes, :payload, :state]
-  defstruct [:attributes, :payload, :state]
+  @enforce_keys [:attributes, :payload, :state, :config]
+  defstruct [:attributes, :payload, :state, :config]
 
   @doc false
-  def create(attributes, payload, state) do
+  def create(attributes, payload, state, config) do
     %__MODULE__{
       attributes: attributes,
       payload: payload,
-      state: state
+      state: state,
+      config: config
     }
   end
 end

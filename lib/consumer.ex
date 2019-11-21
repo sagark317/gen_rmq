@@ -164,9 +164,11 @@ defmodule GenRMQ.Consumer do
   ```
 
   """
-  @spec start_link(module :: module(), options :: Keyword.t()) :: {:ok, pid} | {:error, term}
-  def start_link(module, options \\ []) do
-    GenServer.start_link(__MODULE__, %{module: module}, options)
+  # @type option :: {:my_option, String.t}
+
+  # @spec start_link(%{module :: module(), args :: Keyword.t()}, options :: Keyword.t()) :: {:ok, pid} | {:error, term}
+  def start_link(%{module: module, args: args}, options \\ []) do
+    GenServer.start_link(__MODULE__, %{module: module, args: args}, options)
   end
 
   @doc """
@@ -214,9 +216,9 @@ defmodule GenRMQ.Consumer do
 
   @doc false
   @impl GenServer
-  def init(%{module: module} = initial_state) do
+  def init(%{module: module, args: args} = initial_state) do
     Process.flag(:trap_exit, true)
-    config = apply(module, :init, [])
+    config = apply(module, :init, args)
 
     state =
       initial_state
@@ -287,7 +289,7 @@ defmodule GenRMQ.Consumer do
       Logger.debug("[#{module}]: Redelivered payload for message. Tag: #{tag}, payload: #{payload}")
     end
 
-    handle_message(payload, attributes, state, Keyword.get(config, :concurrency, true))
+    handle_message(payload, attributes, state, Keyword.get(config, :concurrency, true), config)
 
     {:noreply, state}
   end
@@ -312,14 +314,14 @@ defmodule GenRMQ.Consumer do
   # Helpers
   ##############################################################################
 
-  defp handle_message(payload, attributes, %{module: module} = state, false) do
-    message = Message.create(attributes, payload, state)
+  defp handle_message(payload, attributes, %{module: module} = state, false, config) do
+    message = Message.create(attributes, payload, state, config)
     apply(module, :handle_message, [message])
   end
 
-  defp handle_message(payload, attributes, %{module: module} = state, true) do
+  defp handle_message(payload, attributes, %{module: module} = state, true, config) do
     spawn(fn ->
-      message = Message.create(attributes, payload, state)
+      message = Message.create(attributes, payload, state, config)
       apply(module, :handle_message, [message])
     end)
   end
@@ -368,7 +370,7 @@ defmodule GenRMQ.Consumer do
     Map.merge(state, %{in: chan, out: out_chan})
   end
 
-  defp setup_consumer(%{in: chan, config: config, module: module} = state) do
+  defp setup_consumer(%{in: chan, config: config} = state) do
     queue = config[:queue]
     exchange = config[:exchange]
     routing_key = config[:routing_key]
@@ -387,7 +389,7 @@ defmodule GenRMQ.Consumer do
     Queue.declare(chan, queue, durable: true, arguments: arguments)
     GenRMQ.Binding.bind_exchange_and_queue(chan, exchange, queue, routing_key)
 
-    consumer_tag = apply(module, :consumer_tag, [])
+    consumer_tag = config[:queue] <> "-consumer"
     {:ok, _consumer_tag} = Basic.consume(chan, queue, nil, consumer_tag: consumer_tag)
     state
   end
