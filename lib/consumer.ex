@@ -370,7 +370,7 @@ defmodule GenRMQ.Consumer do
     Map.merge(state, %{in: chan, out: out_chan})
   end
 
-  defp setup_consumer(%{in: chan, config: config} = state) do
+  defp setup_consumer(%{in: chan, config: config, module: module} = state) do
     queue = config[:queue]
     exchange = config[:exchange]
     routing_key = config[:routing_key]
@@ -389,7 +389,7 @@ defmodule GenRMQ.Consumer do
     Queue.declare(chan, queue, durable: true, arguments: arguments)
     GenRMQ.Binding.bind_exchange_and_queue(chan, exchange, queue, routing_key)
 
-    consumer_tag = config[:queue] <> "-consumer"
+    consumer_tag = apply(module, :consumer_tag, [config[:queue]])
     {:ok, _consumer_tag} = Basic.consume(chan, queue, nil, consumer_tag: consumer_tag)
     state
   end
